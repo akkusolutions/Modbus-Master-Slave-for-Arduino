@@ -223,6 +223,9 @@ public:
 
 /* _____PUBLIC FUNCTIONS_____________________________________________________ */
 
+
+
+
 /**
  * @brief
  * Constructor for a Master/Slave.
@@ -539,6 +542,8 @@ uint8_t Modbus::getLastError()
  */
 int8_t Modbus::query( modbus_t telegram )
 {
+    port->flush(); //Waits for the transmission of outgoing serial data to complete.
+    while ( port->available() ) port->read(); //Clears RX buffer before sending a new query
     uint8_t u8regsno, u8bytesno;
     if (u8id!=0) return -2;
     if (u8state != COM_IDLE) return -1;
@@ -620,8 +625,17 @@ int8_t Modbus::query( modbus_t telegram )
     sendTxBuffer();
     u8state = COM_WAITING;
     u8lastError = 0;
+
+    #ifdef DEBUG
+        for(int i = 0; i < 8; i++)
+        {
+            Serial.printf("%02hhX",(unsigned char) au8Buffer[i]);
+        }
+        Serial.println();
+    #endif
     return 0;
 }
+//#define DEBUG
 
 /**
  * @brief *** Only for Modbus Master ***
@@ -643,7 +657,7 @@ int8_t Modbus::poll()
 	uint8_t u8current;
     u8current = port->available();
 
-    if ((unsigned long)(millis() -u32timeOut) > (unsigned long)u16timeOut)
+    if ((unsigned long)(millis() - u32timeOut) > (unsigned long)u16timeOut)
     {
         u8state = COM_IDLE;
         u8lastError = NO_REPLY;
@@ -728,10 +742,13 @@ int8_t Modbus::poll( uint16_t *regs, uint8_t u8size )
 
 
     // check if there is any incoming frame
+
     u8current = port->available();
 
     if (u8current == 0) return 0;
-
+    #ifdef DEBUG
+        Serial.println("not0");
+    #endif
     // check T35 after frame end or still no frame end
     if (u8current != u8lastRec)
     {
@@ -743,6 +760,16 @@ int8_t Modbus::poll( uint16_t *regs, uint8_t u8size )
 
     u8lastRec = 0;
     int8_t i8state = getRxBuffer();
+
+    #ifdef DEBUG
+    Serial.print("Buffer: [");
+        for(int i = 0; i < 16; i++)
+        {
+            Serial.printf("%02hhX,",(unsigned char) au8Buffer[i]);
+        }
+        Serial.println("]");
+    #endif
+
     u8lastError = i8state;
     if (i8state < 7) return i8state;
 
